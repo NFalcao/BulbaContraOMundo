@@ -123,9 +123,15 @@
             // Texto de carregamento
             context.fillStyle = 'white';
             context.strokeStyle = 'black';
+            context.lineWidth = 0.7;
+            context.font = 'bold 18px Arial';
+            context.textAlign = 'center';
+            context.fillText("Um jogo por Bruno e Nícolas Falcão de Mendonça", canvas.width / 2, 30);
+            context.strokeText("Um jogo por Bruno e Nícolas Falcão de Mendonça", canvas.width / 2, 30);
+            context.lineWidth = 2;
             context.font = '50px sans-serif';
-            context.fillText("Carregando...", canvas.width / 2 - 130, canvas.height / 2);
-            context.strokeText("Carregando...", canvas.width / 2 - 130, canvas.height / 2);
+            context.fillText("Carregando...", canvas.width / 2, canvas.height / 2);
+            context.strokeText("Carregando...", canvas.width / 2, canvas.height / 2);
             carregadas++;
             var tamanhoTotal = 300;
             var tamanho = carregadas / totalImagens * tamanhoTotal;

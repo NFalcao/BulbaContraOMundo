@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulba Contra o Mundo</title>
+    <script src="animacao.js"></script>
+    <script src="fundo.js"></script>
+    <script src="bulba.js"></script>
+    <script src="teclado.js"></script>
+    <script src="spritesheet.js"></script>
+    <script src="tiro.js"></script>
+    <script src="colisor.js"></script>
+    <script src="patrat.js"></script>
+    <script src="explosao.js"></script>
+    <script src="painel.js"></script>
+    <script src="gameOver.js"></script>
+    <style>
+            .container {
+            position: relative;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        #canvas_jogo {
+            padding-left: 30%;
+        }
+
+        #link_jogar {
+            display: none;
+            color: yellow;
+            background: url(img/botao-jogar.png);
+            font-size: 16px;
+            font-family: sans-serif;
+            text-decoration: none;
+            text-shadow: 2px 2px 5px black;
+            position: absolute;
+            width: 120px; /* Aumentado de 52px */
+            height: 40px; /* Aumentado de 26px */
+            padding: 10px; /* Ajustado */
+            line-height: 40px; /* Para centralizar verticalmente */
+            text-align: center; /* Para centralizar horizontalmente */
+            left: calc(30% + 250px);
+            top: 570px;
+            transform: translate(-50%, -50%);
+            background-size: contain; /* Ajustar imagem ao tamanho do botão */
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <canvas id="canvas_jogo" width="500" height="800" style="padding-left: 30%;"></canvas>
+    <a id="link_jogar" href="javascript: iniciarJogo()"> Jogar </a>
+    <script>
+        // Variáveis globais
+        var canvas = document.getElementById('canvas_jogo');
+        var context = canvas.getContext('2d');
+        var imagens, animacao, teclado, colisor, bulba, criadorInimigos;
+        var espaco, estrelas, nuvens;
+        var totalImagens = 0, carregadas = 0;
+        var musicaAcao;
+        var jogoIniciado = false;
+        var tempoJogo = 0;
+        var inicioJogo = new Date().getTime();
+
+        function carregarImagens() {
+            totalImagens = 0;
+            carregadas = 0;
+            // Imagens base do jogo
+            imagens = {
+                espaco: new Image(),
+                estrelas: new Image(),
+                nuvens: new Image(),
+                bulba: new Image(),
+                patrat: new Image(),
+                folha: new Image()
+            };
+
+            var imagensConfig = {
+                espaco: 'img/testefundo.png',
+                estrelas: 'img/folhas.png',
+                nuvens: 'img/fundo-nuvens.png',
+                bulba: 'img/bulba_spritesheet.png',
+                patrat: 'img/patrat_spritesheet.png',
+                folha: 'img/folha.png'
+            };
+
+            // Carregar imagens base
+            for (var nome in imagensConfig) {
+                totalImagens++;
+                imagens[nome].onload = carregando;
+                imagens[nome].src = imagensConfig[nome];
+            }
+
+            // Carregar imagens de explosão
+            imagens.explosao = [];
+            for(var i = 1; i <= 10; i++) {
+                totalImagens++;
+                var img = new Image();
+                img.onload = carregando;
+                img.src = 'img/explosao' + i + '.png';
+                imagens.explosao.push(img);
+            }
+
+            // Tornar imagens acessíveis globalmente
+            window.imgFolha = imagens.folha;
+            window.imgExplosoes = imagens.explosao;
+        }
+
+        function carregarMusicas() {
+            musicaAcao = new Audio();
+            musicaAcao.src = 'snd/musica-acao.mp3';
+            musicaAcao.load();
+            musicaAcao.volume = 0.8;
+            musicaAcao.loop = true;
+            
+        }
+
+        function carregando() {
+            context.save();
+            context.drawImage(imagens.espaco, 0, 0, canvas.width, canvas.height);
+            // Texto de carregamento
+            context.fillStyle = 'white';
+            context.strokeStyle = 'black';
+            context.font = '50px sans-serif';
+            context.fillText("Carregando...", canvas.width / 2 - 130, canvas.height / 2);
+            context.strokeText("Carregando...", canvas.width / 2 - 130, canvas.height / 2);
+            carregadas++;
+            var tamanhoTotal = 300;
+            var tamanho = carregadas / totalImagens * tamanhoTotal;
+            context.fillStyle = 'yellow';
+            context.fillRect(canvas.width / 2 - 150, canvas.height / 2 + 20, tamanho, 50);
+            context.restore();
+            console.log('Imagem carregada. Total:', carregadas, 'de', totalImagens);
+            if (carregadas == totalImagens) {
+                console.log('Todas as imagens carregadas. Iniciando objetos...');
+                iniciarObjetos();
+                mostrarLinkJogar();
+            }
+        }
+
+        function mostrarLinkJogar() {
+            document.getElementById('link_jogar').style.display = 'block';
+        }
+
+        function iniciarJogo() {
+            document.getElementById('link_jogar').innerText = 'Jogar';
+            document.getElementById('link_jogar').style.display = 'none';
+            inicioJogo = new Date().getTime();
+            jogoIniciado = true;
+            bulba.vidasExtras = 3;
+            bulba.posicionar();
+            painel.pontuacao = 0;
+            animacao.sprites = [espaco, estrelas, nuvens, bulba, painel];
+            colisor.sprites = [bulba];
+            colisor.spritesExcluir = [];
+            criadorInimigos.ultimoPatrat = new Date().getTime();
+            ativarTiro(true);
+            teclado.disparou(ESC, pausarJogo);
+            musicaAcao.currentTime = 0;
+            musicaAcao.play()
+                .then(() => console.log('Música iniciada'))
+                .catch(e => console.log('Erro ao tocar música:', e));
+            animacao.ligar();
+        }
+
+        function ativarTiro(ativar) {
+                if (ativar) {
+                    teclado.disparou(ESPACO, function() {
+                        bulba.atirar();
+                    });
+                } else {
+                    teclado.disparou(ESPACO, null);
+            }
+        }
+        function pausarJogo() {
+                if (animacao.ligado) {
+                    animacao.desligar();
+                    ativarTiro(false);
+                    musicaAcao.pause();
+
+                    tempoJogo = Math.floor((new Date().getTime() - inicioJogo) / 1000);
+                    var minutos = Math.floor(tempoJogo / 60);
+                    var segundos = tempoJogo % 60;
+                    // Escrevendo na tela
+                    context.save();
+                    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.fillStyle = '#FFD700';
+                    context.strokeStyle = 'black';
+                    context.lineWidth = 2;
+                    context.font = 'bold 48px Arial';
+                    context.textAlign = 'center';
+                    context.fillText('JOGO PAUSADO', canvas.width / 2, canvas.height / 2 - 50);
+                    context.strokeText('JOGO PAUSADO', canvas.width / 2, canvas.height / 2 - 50);
+
+                    context.font = '24px Arial';
+                    context.fillStyle = 'white';
+                    context.fillText(
+                        'Tempo de jogo: ' + 
+                        (minutos < 10 ? '0' : '') + minutos + ':' + 
+                        (segundos < 10 ? '0' : '') + segundos,
+                        canvas.width / 2,
+                        canvas.height / 2 + 20
+                    );
+                    context.font = '18px Arial';
+                    context.fillText(
+                        'Pressione ESC para continuar',
+                        canvas.width / 2,
+                        canvas.height / 2 + 60
+                    );
+                    
+                    context.restore();
+                    }
+                 else {
+                    criadorInimigos.ultimoPatrat = new Date().getTime();
+                    animacao.ligar();
+                    ativarTiro(true);
+                    musicaAcao.play();
+                }
+            }
+
+        function iniciarObjetos() {
+            animacao = new Animacao(context);
+            teclado = new Teclado(document);
+            colisor = new Colisor();
+
+            espaco = new Fundo(context, imagens.espaco);
+            estrelas = new Fundo(context, imagens.estrelas);
+            nuvens = new Fundo(context, imagens.nuvens);
+            bulba = new Bulba(context, teclado, imagens.bulba);
+            painel = new Painel(context, bulba);
+            bulba.colisor = colisor;
+            bulba.animacao = animacao;
+
+            animacao.novoSprite(espaco);
+            animacao.novoSprite(estrelas);
+            animacao.novoSprite(nuvens);
+            animacao.novoSprite(painel);
+            animacao.novoSprite(bulba);
+            colisor.novoSprite(bulba);
+            animacao.novoProcessamento(colisor);
+
+            
+            window.bulba = bulba;
+
+            configuracoesIniciais();
+        }
+
+        function configuracoesIniciais() {
+            espaco.velocidade = 2;
+            estrelas.velocidade = 5;
+            nuvens.velocidade = 8;
+
+            bulba.posicionar();
+            bulba.velocidade = 550;
+
+            // Pontuação
+            colisor.aoColidir = function(o1, o2) {
+                if ((o1 instanceof Tiro && o2 instanceof Patrat) ||
+                    (o1 instanceof Patrat && o2 instanceof Tiro)) 
+                    painel.pontuacao += 50;         
+            };
+
+            teclado.disparou(TECLA_M, function() {
+                if(!jogoIniciado) return; // Não deixa a música tocar antes de iniciar o jogo
+
+                if (musicaAcao.paused) {
+                    musicaAcao.play()
+                        .then(() => console.log('Música iniciada'))
+                        .catch(e => console.log('Erro ao tocar música:', e));
+                } else {
+                    musicaAcao.pause();
+                    console.log('Música pausada');
+                }
+            });
+
+            animacao.novoProcessamento({
+                processar: function() {
+                desenharInterface();
+                }
+            });   
+            
+            criacaoInimigos();
+            // Game Over
+            bulba.acabaramVidas = function() {
+                animacao.desligar();
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            ativarTiro(false);
+            musicaAcao.pause();
+            
+            // Calcular tempo de jogo
+            tempoJogo = Math.floor((new Date().getTime() - inicioJogo) / 1000);
+            
+            // Criar e adicionar a tela de game over como sprite
+            var telaGO = new TelaGameOver(context, painel.pontuacao, tempoJogo);
+            animacao.novoSprite(telaGO);
+            
+            // Mostrar botão de jogar novamente
+            document.getElementById('link_jogar').style.display = 'block';
+            document.getElementById('link_jogar').innerText = 'Jogar';
+        }
+
+        function removerInimigos() {
+            for (var i in animacao.sprites) {
+                if (animacao.sprites[i] instanceof Patrat) {
+                    animacao.excluirSprite(animacao.sprites[i]);
+                }
+            }
+        }
+
+        function desenharInterface () {
+            context.save();
+            var padding = 12;
+            var text = 'Pressione M para música ON/OFF';
+            context.font = '14px Arial';
+            context.textAlign = 'right';
+            context.textBaseline = 'bottom';
+
+            var x = canvas.width - padding;
+            var y = canvas.height - padding;
+
+            // fundo semi-transparente
+            var metrics = context.measureText(text);
+            var textW = metrics.width;
+            var textH = 18; // aproximação da altura do texto
+            context.fillStyle = 'rgba(0,0,0,0.2)';
+            context.fillRect(x - textW - 10, y - textH - 6, textW + 16, textH + 10);
+
+            // texto branco
+            context.fillStyle = 'white';
+            context.fillText(text, x, y);
+            context.restore();
+        }
+
+        function criacaoInimigos() {
+            console.log('Criando sistema de inimigos...');
+            criadorInimigos = {
+                ultimoPatrat: new Date().getTime(),
+                intervaloInicial: 1000,
+                intervaloMinimo: 300,
+                processar: function() {
+                    var agora = new Date().getTime();
+                    var decorrido = agora - this.ultimoPatrat;
+                    var tempoJogoAtual = Math.floor((agora - inicioJogo) / 1000);
+                    var reducao = Math.floor(tempoJogoAtual / 10) * 100;
+                    var intervaloAtual = Math.max(this.intervaloMinimo, this.intervaloInicial - reducao);
+                    if (decorrido > intervaloAtual) {
+                        novoPatrat();
+                        this.ultimoPatrat = agora;
+                    }
+                }
+            };
+            animacao.novoProcessamento(criadorInimigos);
+        }
+
+        function novoPatrat() {
+            console.log('Criando novo patrat...');
+            var patrat = new Patrat(context, imagens.patrat);
+            patrat.velocidade = Math.floor(5 + Math.random() * (7 - 5 + 1));
+            
+            var larguraFrame = imagens.patrat.width / 4;
+            patrat.x = Math.floor(Math.random() * (canvas.width - larguraFrame + 1));
+            patrat.y = -imagens.patrat.height;
+
+            patrat.animacao = animacao;
+            patrat.colisor = colisor;
+
+            animacao.novoSprite(patrat);
+            colisor.novoSprite(patrat);
+        }
+
+        // Iniciar o jogo
+        console.log('Iniciando carregamento de imagens...');
+        carregarImagens();
+        carregarMusicas();
+    </script>
+    </div>
+</body>
+</html>
